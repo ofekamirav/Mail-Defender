@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+
+venv/
+env/
+.venv/
+
+.vscode/
+.idea/
+
+data/*.csv
+models/*.joblib
+
+.DS_Store
+Thumbs.db
