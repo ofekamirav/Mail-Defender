@@ -8,6 +8,7 @@ from datetime import datetime
 from threading import Lock
 from typing import Optional
 
+from pathlib import Path
 import pandas as pd
 
 from .config import CSV_PATH, DATA_DIR
@@ -15,7 +16,7 @@ from .config import CSV_PATH, DATA_DIR
 _CSV_LOCK = Lock()
 _EVENTS_LOCK = Lock()
 
-EVENTS_CSV_PATH = DATA_DIR / "events.csv"
+EVENTS_CSV_PATH = Path(DATA_DIR) / "events.csv"
 
 CSV_COLUMNS = [
     "id",
