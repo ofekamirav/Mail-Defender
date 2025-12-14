@@ -5,8 +5,10 @@ DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
 
 CSV_PATH = DATA_DIR / "emails_dataset.csv"
+EVENTS_CSV_PATH = DATA_DIR / "events.csv"
 MODEL_PATH = MODELS_DIR / "phishing_model.joblib"
 
 VECTORIZER_MAX_FEATURES = 10000
 
-RETRAIN_BATCH_SIZE = 3
+RETRAIN_BATCH_SIZE = 5
+MIN_LABELED_TO_TRAIN = 20
