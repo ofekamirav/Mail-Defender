@@ -1,10 +1,10 @@
-import os
 import pandas as pd
-from detector.storage import load_dataset, append_email_record
-from detector.model import MailPhishingModel
-from detector.config import CSV_PATH, MODEL_PATH
 
-#First data for training the model at the first run
+from detector.storage import load_dataset, upsert_scan_record, update_label
+from detector.model import MailPhishingModel
+from detector.config import CSV_PATH
+
+
 SEED_DATA = [
     {"subject": "Win a Lottery Now!", "body": "Click here to claim your prize urgent", "sender": "lottery@winner-lucky.xyz", "label": 1},
     {"subject": "Security Alert", "body": "Your account is compromised verify now", "sender": "security@paypa1.com", "label": 1},
@@ -14,46 +14,73 @@ SEED_DATA = [
     {"subject": "Project Plan", "body": "Here is the roadmap for Q4", "sender": "pm@upwind.io", "label": 0},
 ]
 
-def ensure_seed_data():
-    df = load_dataset(CSV_PATH)
-    
-    if not df.empty and 'label' in df.columns:
-        labeled_df = df[pd.to_numeric(df['label'], errors='coerce').notnull()]
-        if len(labeled_df) >= 5:
-            print(f"[TRAIN] Found {len(labeled_df)} existing labeled emails. Skipping seed data.")
-            return
 
-    print("[TRAIN] Not enough data found. Injecting SEED DATA...")
+def count_labeled(df: pd.DataFrame) -> int:
+    if df.empty or "label" not in df.columns:
+        return 0
+    label_num = pd.to_numeric(df["label"], errors="coerce")
+    return int(label_num.isin([0, 1]).sum())
+
+
+def has_both_classes(df: pd.DataFrame) -> bool:
+    if df.empty or "label" not in df.columns:
+        return False
+    label_num = pd.to_numeric(df["label"], errors="coerce")
+    vals = set(label_num[label_num.isin([0, 1])].astype(int).tolist())
+    return 0 in vals and 1 in vals
+
+
+def ensure_seed_data(min_labeled: int = 6) -> None:
+    df = load_dataset(CSV_PATH)
+
+    labeled = count_labeled(df)
+    if labeled >= min_labeled and has_both_classes(df):
+        print(f"[TRAIN] Found {labeled} labeled emails (both classes present). Skipping seed.")
+        return
+
+    print(f"[TRAIN] Not enough labeled data ({labeled}). Injecting SEED DATA...")
+
     for item in SEED_DATA:
-        append_email_record(
+        upsert = upsert_scan_record(
             subject=item["subject"],
             body=item["body"],
             sender=item["sender"],
             source="seed",
-            ml_score=0.0, 
+            ml_score=0.0,
             rule_score=0.0,
             final_score=0.0,
-            label=item["label"],
-            csv_path=CSV_PATH
+            predicted_label="seed",
+            csv_path=CSV_PATH,
         )
+        update_label(
+            email_id=upsert.email_id,
+            true_label=int(item["label"]),
+            csv_path=CSV_PATH,
+            label_source="seed",
+        )
+
     print("[TRAIN] Seed data injected successfully.")
 
+
 def main():
-    print("[TRAIN] Starting Training Pipeline!!!!")
-    
+    print("[TRAIN] Starting Training Pipeline...")
+
     ensure_seed_data()
-    
+
     df = load_dataset(CSV_PATH)
-    
-    df = df[pd.to_numeric(df['label'], errors='coerce').notnull()]
-    df['label'] = df['label'].astype(int)
+
+    label_num = pd.to_numeric(df["label"], errors="coerce")
+    mask = label_num.isin([0, 1])
+    df = df.loc[mask].copy()
+    df["label"] = label_num.loc[mask].astype(int)
 
     print(f"[TRAIN] Training on {len(df)} samples...")
 
     model = MailPhishingModel()
     model.train_from_dataframe(df)
-    
+
     print("[TRAIN] Training Complete. Model is ready!")
+
 
 if __name__ == "__main__":
     main()
